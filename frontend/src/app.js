@@ -131,6 +131,8 @@ Metabase.config(['$routeProvider', '$locationProvider', function($routeProvider,
 
     $routeProvider.when('/admin/datamodel/:objectType/:objectId/revisions', route);
 
+    $routeProvider.when('/dataref', route);
+
     $routeProvider.when('/unauthorized/', {
         templateUrl: '/app/unauthorized.html',
         controller: 'Unauthorized'

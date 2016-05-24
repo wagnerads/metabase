@@ -11,6 +11,8 @@ import EntityBrowser from "metabase/questions/containers/EntityBrowser.jsx";
 import EntityList from "metabase/questions/containers/EntityList.jsx";
 import EditLabels from "metabase/questions/containers/EditLabels.jsx";
 
+import DataRef from "metabase/dataref/DataRef.jsx";
+
 export default class Routes extends Component {
     render() {
         return (
@@ -31,6 +33,7 @@ export default class Routes extends Component {
                     <Route path=":section" component={EntityList} />
                     <Route path=":section/:slug" component={EntityList} />
                 </Route>
+                <Route path="/dataref" component={DataRef}></Route>
                 <Route path="/*"/>
             </ReduxRouter>
         );
