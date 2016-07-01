@@ -326,6 +326,10 @@ angular.module('metabase', [
     }
 ]);
 
+angular.element(document).ready(function() {
+    angular.bootstrap(document, ['metabase']);
+});
+
 
 
 
