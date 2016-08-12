@@ -12,6 +12,7 @@ import GuiQueryEditor from "../GuiQueryEditor.jsx";
 import NativeQueryEditor from "../NativeQueryEditor.jsx";
 import QueryVisualization from "../QueryVisualization.jsx";
 import DataReference from "../dataref/DataReference.jsx";
+import TagEditorSidebar from "../template_tags/TagEditorSidebar.jsx";
 import QueryBuilderTutorial from "../../tutorial/QueryBuilderTutorial.jsx";
 import SavedQuestionIntroModal from "../SavedQuestionIntroModal.jsx";
 
@@ -21,17 +22,23 @@ import {
     originalCard,
     databases,
     queryResult,
+    parameterValues,
     isDirty,
+    isNew,
     isObjectDetail,
     tables,
     tableMetadata,
     tableForeignKeys,
     tableForeignKeyReferences,
     uiControls,
+    getParameters,
+    getDatabaseFields,
+    getSampleDatasetId,
+    getFullDatasetQuery,
 } from "../selectors";
 
 import * as actions from "../actions";
-
+import { push } from "react-router-redux";
 
 const cardApi = new AngularResourceProxy("Card", ["create", "update", "delete"]);
 const dashboardApi = new AngularResourceProxy("Dashboard", ["list", "create"]);
@@ -64,14 +71,14 @@ function autocompleteResults(card, prefix) {
 
 const mapStateToProps = (state, props) => {
     return {
-        updateUrl:                 props.updateUrl,
         user:                      state.currentUser,
-        fromUrl:                   state.router && state.router.location && state.router.location.query.from,
-        location:                  state.router && state.router.location,
+        fromUrl:                   props.location.query.from,
+        location:                  props.location,
 
         card:                      card(state),
         originalCard:              originalCard(state),
         query:                     state.qb.card && state.qb.card.dataset_query,  // TODO: EOL, redundant
+        parameterValues:           parameterValues(state),
         databases:                 databases(state),
         tables:                    tables(state),
         tableMetadata:             tableMetadata(state),
@@ -79,11 +86,14 @@ const mapStateToProps = (state, props) => {
         tableForeignKeyReferences: tableForeignKeyReferences(state),
         result:                    queryResult(state),
         isDirty:                   isDirty(state),
+        isNew:                     isNew(state),
         isObjectDetail:            isObjectDetail(state),
         uiControls:                uiControls(state),
+        parameters:                getParameters(state),
+        databaseFields:            getDatabaseFields(state),
+        sampleDatasetId:           getSampleDatasetId(state),
+        fullDatasetQuery:          getFullDatasetQuery(state),
 
-        cardIsDirtyFn:             () => isDirty(state),
-        cardIsNewFn:               () => (state.qb.card && !state.qb.card.id),
         isShowingDataReference:    state.qb.uiControls.isShowingDataReference,
         isShowingTutorial:         state.qb.uiControls.isShowingTutorial,
         isEditing:                 state.qb.uiControls.isEditing,
@@ -97,9 +107,13 @@ const mapStateToProps = (state, props) => {
     }
 }
 
+const getURL = (location) =>
+    location.pathname + location.search + location.hash;
+
 
 const mapDispatchToProps = {
     ...actions,
+    onChangeLocation: push
 };
 
 @connect(mapStateToProps, mapDispatchToProps)
@@ -108,35 +122,38 @@ export default class QueryBuilder extends Component {
     constructor(props, context) {
         super(props, context);
 
-        _.bindAll(this, "popStateListener", "handleResize");
+        _.bindAll(this, "handleResize");
 
         // TODO: React tells us that forceUpdate() is not the best thing to use, so ideally we can find a different way to trigger this
         this.forceUpdateDebounced = _.debounce(this.forceUpdate.bind(this), 400);
     }
 
     componentWillMount() {
-        this.props.initializeQB(this.props.updateUrl);
+        this.props.initializeQB(this.props.location, this.props.params);
     }
 
     componentDidMount() {
-        window.addEventListener('popstate', this.popStateListener);
         window.addEventListener('resize', this.handleResize);
     }
 
     componentWillReceiveProps(nextProps) {
-        if (nextProps.uiControls.isShowingDataReference !== this.props.uiControls.isShowingDataReference) {
+        if (nextProps.uiControls.isShowingDataReference !== this.props.uiControls.isShowingDataReference ||
+            nextProps.uiControls.isShowingTemplateTagsEditor !== this.props.uiControls.isShowingTemplateTagsEditor) {
             // when the data reference is toggled we need to trigger a rerender after a short delay in order to
             // ensure that some components are updated after the animation completes (e.g. card visualization)
             window.setTimeout(this.forceUpdateDebounced, 300);
         }
-        // HACK: if we switch to the tutorial from within the QB we need to manually re-initialize
-        if (!this.props.location.query.tutorial && nextProps.location.query.tutorial) {
-            this.props.initializeQB(nextProps.updateUrl);
+
+        if (nextProps.location.action === "POP" && getURL(nextProps.location) !== getURL(this.props.location)) {
+            this.props.popState(nextProps.location);
+        } else if (this.props.location.query.tutorial === undefined && nextProps.location.query.tutorial !== undefined) {
+            this.props.initializeQB(nextProps.location, nextProps.params);
+        } else if (getURL(nextProps.location) === "/q" && getURL(this.props.location) !== "/q") {
+            this.props.initializeQB(nextProps.location, nextProps.params);
         }
     }
 
     componentWillUnmount() {
-        window.removeEventListener('popstate', this.popStateListener);
         window.removeEventListener('resize', this.handleResize);
     }
 
@@ -146,15 +163,8 @@ export default class QueryBuilder extends Component {
         this.forceUpdateDebounced();
     }
 
-    popStateListener(e) {
-        if (e.state && e.state.card) {
-            e.preventDefault();
-            this.props.setCardAndRun(e.state.card);
-        }
-    }
-
     render() {
-        const { card, cardIsDirtyFn, databases, uiControls } = this.props;
+        const { card, isDirty, databases, uiControls } = this.props;
 
         // if we can't load the card that was intended then we end up with a 404
         // TODO: we should do something more unique for is500
@@ -173,16 +183,17 @@ export default class QueryBuilder extends Component {
             );
         }
 
+        const showDrawer = uiControls.isShowingDataReference || uiControls.isShowingTemplateTagsEditor;
         return (
-            <div>
-                <div className={cx("QueryBuilder flex flex-column bg-white spread", {"QueryBuilder--showDataReference": uiControls.isShowingDataReference})}>
+            <div className="flex-full relative">
+                <div className={cx("QueryBuilder flex flex-column bg-white spread", {"QueryBuilder--showSideDrawer": showDrawer})}>
                     <div id="react_qb_header">
                         <QueryHeader {...this.props}/>
                     </div>
 
                     <div id="react_qb_editor" className="z2">
                         { card && card.dataset_query && card.dataset_query.type === "native" ?
-                            <NativeQueryEditor {...this.props} isOpen={!card.dataset_query.native.query || cardIsDirtyFn()} />
+                            <NativeQueryEditor {...this.props} isOpen={!card.dataset_query.native.query || isDirty} />
                         :
                             <div className="wrapper"><GuiQueryEditor {...this.props}/></div>
                         }
@@ -193,8 +204,14 @@ export default class QueryBuilder extends Component {
                     </div>
                 </div>
 
-                <div className="DataReference" id="react_data_reference">
-                    <DataReference {...this.props} closeFn={() => this.props.toggleDataReference()} />
+                <div className={cx("SideDrawer", { "SideDrawer--show": showDrawer })}>
+                    { uiControls.isShowingDataReference &&
+                        <DataReference {...this.props} closeFn={() => this.props.toggleDataReference()} />
+                    }
+
+                    { uiControls.isShowingTemplateTagsEditor &&
+                        <TagEditorSidebar {...this.props} onClose={() => this.props.toggleTemplateTagsEditor()} />
+                    }
                 </div>
 
                 { uiControls.isShowingTutorial &&

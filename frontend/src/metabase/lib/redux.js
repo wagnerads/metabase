@@ -48,14 +48,14 @@ export const createStoreWithAngularScope = ($scope, $location, ...args) => {
 export function AngularResourceProxy(serviceName, methods) {
     methods.forEach((methodName) => {
         this[methodName] = function(...args) {
-            let service = angular.element(document.querySelector("body")).injector().get(serviceName);
+            let service = angular.element(document.body).injector().get(serviceName);
             return service[methodName](...args).$promise;
         }
     });
 }
 
 export function angularPromise() {
-    let $q = angular.element(document.querySelector("body")).injector().get("$q");
+    let $q = angular.element(document.body).injector().get("$q");
     return $q.defer();
 }
 
@@ -90,3 +90,13 @@ export function momentifyTimestamps(object, keys = ["created_at", "updated_at"])
 export function momentifyObjectsTimestamps(objects, keys) {
     return _.mapObject(objects, o => momentifyTimestamps(o, keys));
 }
+
+//filters out angular cruft and turns into id indexed map
+export const resourceListToMap = (resources) => resources
+    .filter(resource => resource.id !== undefined)
+    .reduce((map, resource) => Object.assign({}, map, {[resource.id]: resource}), {});
+
+//filters out angular cruft in resource
+export const cleanResource = (resource) => Object.keys(resource)
+    .filter(key => key.charAt(0) !== "$")
+    .reduce((map, key) => Object.assign({}, map, {[key]: resource[key]}), {});

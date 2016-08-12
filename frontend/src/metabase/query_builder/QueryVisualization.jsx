@@ -1,5 +1,6 @@
 import React, { Component, PropTypes } from "react";
 import ReactDOM from "react-dom";
+import { Link } from "react-router";
 
 import Icon from "metabase/components/Icon.jsx";
 import LoadingSpinner from 'metabase/components/LoadingSpinner.jsx';
@@ -15,14 +16,14 @@ import Query from "metabase/lib/query";
 import cx from "classnames";
 import _ from "underscore";
 
+const isEqualsDeep = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
 export default class QueryVisualization extends Component {
     constructor(props, context) {
         super(props, context);
         this.runQuery = this.runQuery.bind(this);
 
-        this.state = {
-            lastRunDatasetQuery: props.card.dataset_query
-        };
+        this.state = this._getStateFromProps(props);
     }
 
     static propTypes = {
@@ -48,18 +49,26 @@ export default class QueryVisualization extends Component {
         maxTableRows: 2000
     };
 
+    _getStateFromProps(props) {
+        return {
+            lastRunDatasetQuery: JSON.parse(JSON.stringify(props.card.dataset_query)),
+            lastRunParameterValues: JSON.parse(JSON.stringify(props.parameterValues))
+        };
+    }
+
     componentWillReceiveProps(nextProps) {
         // whenever we are told that we are running a query lets update our understanding of the "current" query
         if (nextProps.isRunning) {
-            this.setState({
-                lastRunDatasetQuery: JSON.parse(JSON.stringify(nextProps.card.dataset_query))
-            });
+            this.setState(this._getStateFromProps(nextProps));
         }
     }
 
     queryIsDirty() {
         // a query is considered dirty if ANY part of it has been changed
-        return JSON.stringify(this.props.card.dataset_query) !== JSON.stringify(this.state.lastRunDatasetQuery);
+        return (
+            !isEqualsDeep(this.props.card.dataset_query, this.state.lastRunDatasetQuery) ||
+            !isEqualsDeep(this.props.parameterValues, this.state.lastRunParameterValues)
+        );
     }
 
     isChartDisplay(display) {
@@ -132,8 +141,8 @@ export default class QueryVisualization extends Component {
     }
 
     onDownloadCSV() {
-        const form = this._downloadCsvForm.getDOMNode();
-        form.query.value = JSON.stringify(this.props.card.dataset_query);
+        const form = ReactDOM.findDOMNode(this._downloadCsvForm);
+        form.query.value = JSON.stringify(this.props.fullDatasetQuery);
         form.submit();
     }
 
@@ -165,11 +174,11 @@ export default class QueryVisualization extends Component {
                         key="download"
                         ref="downloadModal"
                         className="Modal Modal--small"
-                        triggerElement={<Icon className="mx1" title="Download this data" name='download' width="16px" height="16px" />}
+                        triggerElement={<Icon className="mx1" title="Download this data" name='download' size={16} />}
                     >
                         <div style={{width: "480px"}} className="Modal--small p4 text-centered relative">
                             <span className="absolute top right p4 text-normal text-grey-3 cursor-pointer" onClick={() => this.refs.downloadModal.toggle()}>
-                                <Icon name={'close'} width={16} height={16} />
+                                <Icon name={'close'} size={16} />
                             </span>
                             <div className="p3 text-strong">
                                 <h2 className="text-bold">Download large data set</h2>
@@ -186,7 +195,7 @@ export default class QueryVisualization extends Component {
                         <a className="mx1" title="Download this data" onClick={function() {
                             window.OSX.saveCSV(JSON.stringify(card.dataset_query));
                         }}>
-                            <Icon name='download' width="16px" height="16px" />
+                            <Icon name='download' size={16} />
                         </a>
                     );
                 } else {
@@ -194,7 +203,7 @@ export default class QueryVisualization extends Component {
                         <form ref={(c) => this._downloadCsvForm = c} method="POST" action="/api/dataset/csv">
                             <input type="hidden" name="query" value="" />
                             <a className="mx1" title="Download this data" onClick={() => this.onDownloadCSV()}>
-                                <Icon name='download' width="16px" height="16px" />
+                                <Icon name='download' size={16} />
                             </a>
                         </form>
                     );
@@ -251,5 +260,5 @@ export default class QueryVisualization extends Component {
 const VisualizationEmptyState = ({showTutorialLink}) =>
     <div className="flex full layout-centered text-grey-1 flex-column">
         <h1>If you give me some data I can show you something cool. Run a Query!</h1>
-        { showTutorialLink && <a className="link cursor-pointer my2" href="/q?tutorial">How do I use this thing?</a> }
+        { showTutorialLink && <Link to="/q?tutorial" className="link cursor-pointer my2">How do I use this thing?</Link> }
     </div>

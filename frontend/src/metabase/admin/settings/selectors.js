@@ -2,6 +2,7 @@ import _ from "underscore";
 import { createSelector } from "reselect";
 import MetabaseSettings from "metabase/lib/settings";
 
+import { slugify } from "metabase/lib/formatting";
 
 const SECTIONS = [
     {
@@ -41,6 +42,16 @@ const SECTIONS = [
                 key: "anon-tracking-enabled",
                 display_name: "Anonymous Tracking",
                 type: "boolean"
+            },
+            {
+                key: "enable-advanced-humanization",
+                display_name: "Friendly Table and Field Names",
+                type: "boolean"
+            },
+            {
+                key: "google-maps-api-key",
+                display_name: "Google Maps API Key",
+                type: "string"
             }
         ]
     },
@@ -128,7 +139,7 @@ const SECTIONS = [
         ]
     },
     {
-        name: "Single Sign On",
+        name: "Single Sign-On",
         settings: [
             {
                 key: "google-auth-client-id"
@@ -139,6 +150,9 @@ const SECTIONS = [
         ]
     }
 ];
+for (const section of SECTIONS) {
+    section.slug = slugify(section.name);
+}
 
 export const getSettings = state => state.settings.settings;
 
@@ -173,14 +187,14 @@ export const getSections = createSelector(
     }
 );
 
-export const getActiveSectionName = (state) => state.router && state.router.location && state.router.location.query.section
+export const getActiveSectionName = (state, props) => props.params.section
 
 export const getActiveSection = createSelector(
     getActiveSectionName,
     getSections,
-    (section = "Setup", sections) => {
+    (section = "setup", sections) => {
         if (sections) {
-            return _.findWhere(sections, {name: section});
+            return _.findWhere(sections, { slug: section });
         } else {
             return null;
         }

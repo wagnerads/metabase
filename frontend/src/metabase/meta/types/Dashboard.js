@@ -29,9 +29,12 @@ export type ParameterObject = {
     default?: string
 };
 
+export type VariableTarget = ["template-tag", string];
+export type DimensionTarget = ["template-tag", string] | ConcreteField
+
 export type ParameterMappingTarget =
-    ["parameter", string] |
-    ["dimension", ConcreteField];
+    ["variable", VariableTarget] |
+    ["dimension", DimensionTarget];
 
 export type ParameterMappingOption = {
     name: string,
@@ -45,8 +48,13 @@ export type ParameterMappingObject = {
 };
 
 export type ParameterOption = {
-    id: string,
     name: string,
     description?: string,
     type: ParameterType
+};
+
+export type ParameterInstance = {
+    type: ParameterType,
+    target: ParameterMappingTarget,
+    value: string
 };

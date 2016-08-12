@@ -1,5 +1,5 @@
 (ns metabase.api.setup
-  (:require [compojure.core :refer [defroutes GET POST]]
+  (:require [compojure.core :refer [GET POST]]
             (metabase.api [common :refer :all]
                           [database :refer [annotation:DBEngine]])
             (metabase [db :as db]
@@ -43,9 +43,9 @@
     ;; this results in a second db call, but it avoids redundant password code so figure it's worth it
     (set-user-password! (:id new-user) password)
     ;; set a couple preferences
-    (setting/set :site-name site_name)
-    (setting/set :admin-email email)
-    (setting/set :anon-tracking-enabled (or allow_tracking "true"))
+    (setting/set! :site-name site_name)
+    (setting/set! :admin-email email)
+    (setting/set! :anon-tracking-enabled (or allow_tracking true))
     ;; setup database (if needed)
     (when (driver/is-engine? engine)
       (->> (db/insert! Database
@@ -111,13 +111,13 @@
      {:title       "Set up email"
       :group       "Get connected"
       :description "Add email credentials so you can more easily invite team members and get updates via Pulses."
-      :link        "/admin/settings/?section=Email"
+      :link        "/admin/settings/email"
       :completed   (email/email-configured?)
       :triggered   :always}
      {:title       "Set Slack credentials"
       :group       "Get connected"
       :description "Does your team use Slack?  If so, you can send automated updates via pulses and ask questions with Metabot."
-      :link        "/admin/settings/?section=Slack"
+      :link        "/admin/settings/slack"
       :completed   (slack/slack-configured?)
       :triggered   :always}
      {:title       "Invite team members"

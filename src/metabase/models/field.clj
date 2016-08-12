@@ -3,8 +3,8 @@
                      [string :as s])
             [medley.core :as m]
             [metabase.db :as db]
-            (metabase.models [common :as common]
-                             [field-values :refer [FieldValues]]
+            (metabase.models [field-values :refer [FieldValues]]
+                             [humanization :as humanization]
                              [interface :as i])
             [metabase.util :as u]))
 
@@ -82,12 +82,13 @@
                   :field_type      :info
                   :visibility_type :normal
                   :position        0
-                  :display_name    (common/name->human-readable-name (:name field))}]
+                  :display_name    (humanization/name->human-readable-name (:name field))}]
     (merge defaults field)))
 
 (defn- pre-cascade-delete [{:keys [id]}]
   (db/cascade-delete! Field :parent_id id)
-  (db/cascade-delete! 'FieldValues :field_id id))
+  (db/cascade-delete! 'FieldValues :field_id id)
+  (db/cascade-delete! 'MetricImportantField :field_id id))
 
 (defn ^:hydrate target
   "Return the FK target `Field` that this `Field` points to."
@@ -104,9 +105,12 @@
 (defn qualified-name-components
   "Return the pieces that represent a path to FIELD, of the form `[table-name parent-fields-name* field-name]`."
   [{field-name :name, table-id :table_id, parent-id :parent_id}]
-  (conj (if-let [parent (Field parent-id)]
-          (qualified-name-components parent)
-          [(db/select-one-field :name 'Table, :id table-id)])
+  (conj (vec (if-let [parent (Field parent-id)]
+               (qualified-name-components parent)
+               (let [{table-name :name, schema :schema} (db/select-one ['Table :name :schema], :id table-id)]
+                 (conj (when schema
+                         [schema])
+                       table-name))))
         field-name))
 
 (defn qualified-name
@@ -207,7 +211,7 @@
   (let [updated-field (assoc existing-field
                         :base_type    base-type
                         :display_name (or (:display_name existing-field)
-                                          (common/name->human-readable-name field-name))
+                                          (humanization/name->human-readable-name field-name))
                         :special_type (or (:special_type existing-field)
                                           special-type
                                           (when pk? :id)
@@ -236,7 +240,7 @@
     :table_id      table-id
     :raw_column_id raw-column-id
     :name          field-name
-    :display_name  (common/name->human-readable-name field-name)
+    :display_name  (humanization/name->human-readable-name field-name)
     :base_type     base-type
     :special_type  (or special-type
                        (when pk? :id)
